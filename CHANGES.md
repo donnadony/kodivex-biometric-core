@@ -65,3 +65,8 @@ Resumen de lo que cambió respecto a la primera versión del módulo.
 - Las tablas de mapeo salieron de ADR-0001 a `docs/spec/error-mapping.md`, que pasa a ser la fuente normativa. ADR-0001 cita MASWE-0021 y su confirmación indica qué tests cubren cada tabla (falta un test unitario para la tabla de disponibilidad de Android).
 - ADR-0002 corregido tras verificar contra la documentación de Apple, Android y OWASP: códigos de iOS al invalidarse el ítem (incluido el cambio en iOS 15), `LAContext` nuevo por lectura, configuración en API 23 a 29, StrongBox con caída a TEE, aclaración de que sube la barrera contra hooks pero no da inmunidad, referencias MASWE y MASTG concretas, y tres alternativas nuevas (ventana de validez, passkeys, App Attest y Play Integrity).
 - El detalle de APIs de ADR-0002 pasó a `docs/design/crypto-bound-biometrics.md`.
+
+## 9. ADR-0002 sin romper el contrato
+
+- ADR-0002 y su nota de diseño: los casos nuevos (`keyInvalidated`, `passcodeNotSet`) pasan a un tipo propio, `BiometricSecretError`, que envuelve `BiometricResult` en vez de ampliarlo. Así se cumple el criterio de no romper a los consumidores actuales. Sigue en estado Propuesto.
+- Los comentarios de código y de tests que decían "tabla en ADR-0001" ahora apuntan a las tablas de `docs/spec/error-mapping.md`.

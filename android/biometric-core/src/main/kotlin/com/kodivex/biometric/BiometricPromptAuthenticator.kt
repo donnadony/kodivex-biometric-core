@@ -10,7 +10,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Implementación Android del contrato usando androidx.biometric.
- * Traduce los códigos de BiometricPrompt al BiometricResult común (tabla en ADR-0001).
+ * Traduce los códigos de BiometricPrompt al BiometricResult común (tabla "Resultado del prompt" en docs/spec/error-mapping.md).
  */
 class BiometricPromptAuthenticator(
     private val activityProvider: () -> FragmentActivity,

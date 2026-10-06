@@ -13,10 +13,10 @@ Detalle de implementación de [ADR-0002](../adr/0002-crypto-bound-biometrics.md)
 - **Dónde vive el secreto:** el Secure Enclave protege la clave de la fila del Keychain y decide la biometría, pero tras un unlock el secreto llega **en claro** a la app. Para que el secreto nunca salga del chip haría falta una clave EC con `kSecAttrTokenIDSecureEnclave` (opción de challenge en ADR-0002).
 - **Errores:**
 
-| Situación | `OSStatus` | Resultado del contrato |
+| Situación | `OSStatus` | `BiometricSecretError` |
 |---|---|---|
 | Ítem invalidado por cambio de enrolamiento | `errSecItemNotFound` (hasta iOS 14), `errSecAuthFailed` (iOS 15 o superior) | `keyInvalidated` |
-| Usuario cancela el prompt | `errSecUserCanceled` | `cancelled` |
+| Usuario cancela el prompt | `errSecUserCanceled` | `authentication(.cancelled)` |
 | Éxito | `errSecSuccess` | secreto |
 
 El cambio de código en iOS 15 está reportado por la comunidad ([Apple Developer Forums](https://developer.apple.com/forums/thread/690546)), no documentado por Apple: tratar ambos códigos igual y confirmarlo en el spike.
@@ -35,10 +35,10 @@ El cambio de código en iOS 15 está reportado por la comunidad ([Apple Develope
   - Considerar `setConfirmationRequired(true)` para rostro pasivo ([MASTG-BEST-0038](https://mas.owasp.org/MASTG/best-practices/MASTG-BEST-0038/)).
 - **Errores:**
 
-| Situación | Señal | Resultado del contrato |
+| Situación | Señal | `BiometricSecretError` |
 |---|---|---|
 | Enrolamiento cambió | `KeyPermanentlyInvalidatedException` en `Cipher.init` | `keyInvalidated` |
-| Resto de errores del prompt | códigos de `BiometricPrompt` | según [`docs/spec/error-mapping.md`](../spec/error-mapping.md) |
+| Resto de errores del prompt | códigos de `BiometricPrompt` | `authentication(...)` con el valor que indica [`docs/spec/error-mapping.md`](../spec/error-mapping.md) |
 
 - **A futuro:** [Key Attestation](https://developer.android.com/privacy-and-security/security-key-attestation) para que el backend verifique que la clave vive en hardware seguro (opción de challenge en ADR-0002).
 
@@ -46,12 +46,18 @@ El cambio de código en iOS 15 está reportado por la comunidad ([Apple Develope
 
 ```
 BiometricSecretStore
-  store(secret)        -> Result<Unit, BiometricResult>
-  unlock(reason)       -> Result<Secret, BiometricResult>
+  store(secret)        -> Result<Unit, BiometricSecretError>
+  unlock(reason)       -> Result<Secret, BiometricSecretError>
   invalidate()
+
+BiometricSecretError (cerrado)
+  authentication(BiometricResult)   // resultado del prompt, sin cambios
+  keyInvalidated                    // el enrolamiento cambió
+  passcodeNotSet                    // no hay código del dispositivo
 ```
 
-- `unlock` reutiliza los valores de `BiometricResult` y agrega `keyInvalidated`.
+- `BiometricResult` (ADR-0001) no se toca: agregarle casos rompería los `switch` y `when` exhaustivos de los consumidores. Los casos nuevos viven solo en `BiometricSecretError`.
+- `passcodeNotSet` es propio del almacén: en iOS no se puede guardar un ítem con `WhenPasscodeSetThisDeviceOnly` sin código, y no debe confundirse con `notEnrolled`.
 - La política trata `keyInvalidated` como `requirePin` más una marca para pedir reactivar la biometría tras el login con PIN.
 - Clave AES: guardar también exige autenticación. Si se necesita guardar sin prompt (por ejemplo al rotar el refresh token en background), usar una clave asimétrica: cifrar con la pública sin prompt y exigir biometría solo al descifrar con la privada.
 
