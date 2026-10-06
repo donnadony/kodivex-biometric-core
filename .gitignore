@@ -1,0 +1,27 @@
+# iOS / SPM (también el Swift Package del plugin Flutter)
+**/.build/
+**/.swiftpm/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+*.iml
+.idea/
+
+# Flutter
+flutter/**/.dart_tool/
+flutter/**/build/
+flutter/**/.flutter-plugins*
+flutter/**/pubspec.lock
+
+# Generado por Pigeon (se versiona para que el plugin compile sin pasos extra;
+# descomentar si prefieres regenerar en CI)
+# **/messages.g.dart
+# **/Messages.g.swift
+# **/Messages.g.kt
+
+.DS_Store
