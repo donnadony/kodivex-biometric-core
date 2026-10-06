@@ -49,7 +49,7 @@ Resumen de lo que cambió respecto a la primera versión del módulo.
 - iOS: nuevos tests de `BiometricAvailability`, del corto circuito por estado y del reinicio automático en `BiometricSession`.
 - Android: `BiometricPromptAuthenticatorTest` cubre cada código, incluido el botón negativo con y sin caída a PIN. Nuevos tests de disponibilidad y de reinicio automático con un autenticador falso.
 - Flutter: `test/biometric_core_flutter_test.dart` con un HostApi falso.
-- `.github/workflows/ci.yml` con dos jobs: `ios` (`swift test` en macOS) y `android` (JDK 17, setup-android y Gradle 8.9 fijo, porque el repo no trae wrapper).
+- `.github/workflows/ci.yml` con dos jobs: `ios` (`swift test` en macOS) y `android` (JDK 17, el Android SDK que ya trae el runner y Gradle 8.9 fijo, porque el repo no trae wrapper).
 - README con badge de CI para `github.com/donnadony/kodivex-biometric-core`.
 
 ## 7. ADR-0002 y documentación
@@ -57,3 +57,11 @@ Resumen de lo que cambió respecto a la primera versión del módulo.
 - Nuevo `docs/adr/0002-crypto-bound-biometrics.md` (Estado: Propuesto): pasar de biometría por evento a biometría ligada a criptografía, con Keychain y `.biometryCurrentSet` en iOS, y Keystore con `setUserAuthenticationRequired(true)`, `setInvalidatedByBiometricEnrollment(true)` y `BiometricPrompt.CryptoObject` en Android. Referencia MASVS-AUTH-2.
 - Roadmap del README con ADR-0002 en curso.
 - Se quitaron las rayas largas de README y ADRs; las celdas vacías de tablas ahora dicen N/A o describen el caso.
+
+## 8. ADRs al formato MADR 4
+
+- Plantilla `0000-template.md` basada en MADR 4: front matter YAML, resumen en una línea (Y-Statement) con TL;DR en inglés, criterios de decisión, opción elegida con nivel de confianza, sección de confirmación y pros y contras por opción.
+- Nuevo índice `docs/adr/README.md` con estados, diagrama de relaciones y la regla de no editar ADRs aceptados.
+- Las tablas de mapeo salieron de ADR-0001 a `docs/spec/error-mapping.md`, que pasa a ser la fuente normativa. ADR-0001 cita MASWE-0021 y su confirmación indica qué tests cubren cada tabla (falta un test unitario para la tabla de disponibilidad de Android).
+- ADR-0002 corregido tras verificar contra la documentación de Apple, Android y OWASP: códigos de iOS al invalidarse el ítem (incluido el cambio en iOS 15), `LAContext` nuevo por lectura, configuración en API 23 a 29, StrongBox con caída a TEE, aclaración de que sube la barrera contra hooks pero no da inmunidad, referencias MASWE y MASTG concretas, y tres alternativas nuevas (ventana de validez, passkeys, App Attest y Play Integrity).
+- El detalle de APIs de ADR-0002 pasó a `docs/design/crypto-bound-biometrics.md`.

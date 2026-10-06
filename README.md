@@ -9,7 +9,7 @@ Módulo de autenticación biométrica con **un solo contrato** y tres consumidor
 | Contrato + implementación iOS | Swift Package, `LocalAuthentication` | `ios/BiometricCore` |
 | Contrato + implementación Android | Android library, `androidx.biometric` | `android/biometric-core` |
 | Puente Flutter | Plugin con Pigeon (platform channels tipados) | `flutter/biometric_core_flutter` |
-| Decisiones | ADRs | `docs/adr` |
+| Decisiones | [ADRs](docs/adr/README.md) (formato MADR 4) | `docs/adr` |
 
 ## Idea central
 
@@ -34,14 +34,17 @@ Dos detalles de la política:
 - `maxAttempts` cuenta prompts, no lecturas del sensor. Cada prompt del sistema ya permite varios intentos internos.
 - La sesión reinicia el contador sola después de `grantAccess` o `requirePin`.
 
-Las tablas completas de mapeo están en [ADR-0001](docs/adr/0001-shared-contract.md).
+Las tablas completas de mapeo están en la [especificación de errores](docs/spec/error-mapping.md); el porqué de este diseño, en [ADR-0001](docs/adr/0001-shared-contract.md).
 
 ## Estructura
 
 ```
 kodivex-biometric-core/
 ├── .github/workflows/ci.yml  # swift test + gradle :biometric-core:test
-├── docs/adr/                 # 0000-template, 0001-shared-contract, 0002-crypto-bound-biometrics
+├── docs/
+│   ├── adr/                  # índice, plantilla MADR, 0001 y 0002
+│   ├── spec/                 # error-mapping.md (fuente normativa del mapeo)
+│   └── design/               # notas de implementación (crypto-bound)
 ├── ios/BiometricCore/        # swift build / swift test
 ├── android/biometric-core/   # gradle :biometric-core:test
 └── flutter/biometric_core_flutter/

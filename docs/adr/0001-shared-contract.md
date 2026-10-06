@@ -1,65 +1,86 @@
+---
+status: aceptado
+date: 2026-10-05
+decision-makers: Dony Mollo
+consulted: N/A
+---
+
 # ADR-0001: Un contrato de resultado común para biometría en iOS, Android y Flutter
 
-- **Estado:** Aceptado
-- **Fecha:** 2026-10-05
-- **Actualizado:** 2026-10-05 (estado de disponibilidad, auto reinicio de intentos, política expuesta a Flutter)
-- **Autor:** Dony Mollo
-- **Revisores:** N/A
+> **En resumen:** En el contexto de una app bancaria con login biométrico en iOS, Android y una futura app Flutter, frente a APIs nativas que reportan errores y bloqueos de forma distinta, decidimos un contrato común con resultado cerrado y la política de negocio en código nativo (expuesta a Flutter vía Pigeon) para escribir y testear la lógica de reintentos y caída a PIN una sola vez por plataforma, aceptando mantener dos implementaciones del contrato hasta moverlo a KMP.
+>
+> **TL;DR (EN):** One closed result contract for biometrics across iOS, Android and Flutter; business policy stays native and Flutter consumes it through Pigeon instead of reimplementing it.
 
-## Contexto
+## Contexto y problema
 
 Una app bancaria necesita login biométrico con el mismo comportamiento en iOS y Android, y una futura app secundaria en Flutter reutilizará la misma funcionalidad. `LocalAuthentication` (iOS) y `BiometricPrompt` (Android) exponen errores, fallbacks y políticas de bloqueo distintas. Si cada app interpreta esos errores por su cuenta, la lógica de negocio (reintentos, caída a PIN, mensajes) se duplica y diverge.
 
+## Criterios de decisión
+
+- La política de reintentos y caída a PIN se escribe y se testea una sola vez por plataforma nativa.
+- Las UIs (SwiftUI, Compose, Flutter) no conocen `LAError` ni códigos de `BiometricPrompt`.
+- Sin dependencias de terceros en un flujo de seguridad: tiene que poder defenderse en una auditoría bancaria.
+- Costo de mantenimiento proporcional a un equipo pequeño.
+
+## Opciones consideradas
+
+1. Cada app maneja los errores nativos directamente.
+2. Flutter como única implementación, con un plugin de terceros.
+3. Contrato común nativo, pero Flutter recibe solo `authenticate` y escribe su propia política.
+4. Contrato común nativo con la política expuesta a Flutter.
+
 ## Decisión
 
-Definir un **contrato único** `BiometricAuthenticator` con un resultado cerrado (`BiometricResult`), un estado de disponibilidad cerrado (`BiometricAvailabilityStatus`) y una `BiometricPolicy` que contiene la lógica de negocio. `BiometricSession` orquesta autenticador y política. Cada plataforma implementa el contrato traduciendo sus errores nativos a los valores comunes.
+**Opción elegida: "Contrato común nativo con la política expuesta a Flutter"**, porque es la única que cumple el primer criterio en los tres consumidores sin agregar dependencias externas.
 
-Flutter consume el contrato **y la política** a través de un plugin generado con Pigeon: `runSession` ejecuta la `BiometricSession` nativa y devuelve la decisión ya tomada (`grantAccess`, `retry`, `requirePin` o `showUnavailable`). Así Flutter no reimplementa reintentos ni caída a PIN. `authenticate` queda disponible como prompt crudo para casos especiales.
+**Confianza:** alta. El contrato es pequeño (siete resultados y cuatro estados de disponibilidad) y ya está implementado y testeado en ambas plataformas.
 
-### Resultado del prompt (`BiometricResult`)
+En concreto:
 
-| Resultado | iOS (LAError) | Android (BiometricPrompt) |
-|---|---|---|
-| `success` | `evaluatePolicy` devuelve `true` | `onAuthenticationSucceeded` |
-| `cancelled` | `userCancel`, `systemCancel`, `appCancel` | `ERROR_USER_CANCELED`, `ERROR_CANCELED`, `ERROR_NEGATIVE_BUTTON` cuando no hay caída a PIN |
-| `lockedOut` | `biometryLockout` | `ERROR_LOCKOUT`, `ERROR_LOCKOUT_PERMANENT` |
-| `notAvailable` | `biometryNotAvailable` | `ERROR_HW_NOT_PRESENT`, `ERROR_HW_UNAVAILABLE`, `ERROR_SECURITY_UPDATE_REQUIRED` |
-| `notEnrolled` | `biometryNotEnrolled`, `passcodeNotSet` | `ERROR_NO_BIOMETRICS` (prompt), `BIOMETRIC_ERROR_NONE_ENROLLED` (BiometricManager, ver tabla siguiente) |
-| `fallbackToPin` | `userFallback` | `ERROR_NEGATIVE_BUTTON` con el botón configurado como "Usar PIN" |
-| `failed(reason)` | cualquier otro | cualquier otro |
+- `BiometricAuthenticator` es el contrato. Devuelve un `BiometricResult` cerrado y un `BiometricAvailabilityStatus` cerrado.
+- `BiometricPolicy` contiene la lógica de negocio y `BiometricSession` orquesta autenticador y política.
+- Cada plataforma traduce sus errores nativos a los valores comunes. El mapeo fila por fila es normativo y vive en la especificación [`docs/spec/error-mapping.md`](../spec/error-mapping.md), no en este ADR.
+- Flutter llama a `runSession`, que ejecuta la `BiometricSession` nativa y devuelve la decisión ya tomada (`grantAccess`, `retry`, `requirePin` o `showUnavailable`). `authenticate` queda como prompt crudo para casos especiales.
+- `maxAttempts` cuenta **prompts**, no lecturas del sensor: cada prompt del sistema ya reintenta internamente antes de devolver error. La sesión reinicia el contador sola después de una decisión terminal (`grantAccess` o `requirePin`); `reset()` queda para casos explícitos como cerrar sesión.
 
-### Disponibilidad antes del prompt (`BiometricAvailabilityStatus`)
+### Consecuencias
 
-| Estado | iOS (`canEvaluatePolicy`) | Android (`BiometricManager.canAuthenticate(BIOMETRIC_STRONG)`) | Decisión de `BiometricSession` |
-|---|---|---|---|
-| `available` | devuelve `true` | `BIOMETRIC_SUCCESS` | lanza el prompt |
-| `notAvailable` | `biometryNotAvailable` (incluye permiso de Face ID negado, aunque `biometryType` siga en `.faceID`), cualquier otro error | `BIOMETRIC_ERROR_NO_HARDWARE`, `BIOMETRIC_ERROR_HW_UNAVAILABLE`, `BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED`, `BIOMETRIC_ERROR_UNSUPPORTED`, `BIOMETRIC_STATUS_UNKNOWN`, cualquier otro | `showUnavailable("notAvailable")` |
-| `notEnrolled` | `biometryNotEnrolled`, `passcodeNotSet` | `BIOMETRIC_ERROR_NONE_ENROLLED` | `showUnavailable("notEnrolled")` |
-| `lockedOut` | `biometryLockout` | N/A: `BiometricManager` no informa bloqueo, llega después como `ERROR_LOCKOUT` del prompt | `requirePin` |
+- **Buenas:** la política se escribe una vez por plataforma y Flutter la consume sin duplicarla; los consumidores no conocen códigos nativos; el mapeo queda versionado en una especificación con tests.
+- **Malas / deuda que aceptamos:** `BiometricPolicy` existe en Swift y en Kotlin por separado (duplicación controlada; plan: moverla a Kotlin Multiplatform en un ADR futuro). La caída a PIN es un fallback a credencial no biométrica: aceptable para login, no para transacciones sensibles (OWASP MASWE-0021). La biometría sigue siendo un evento (booleano) y no un secreto criptográfico: se aborda en [ADR-0002](0002-crypto-bound-biometrics.md).
+- **Qué nos haría revisar esta decisión:** que Apple o Google expongan un estado que no mapee limpiamente, o que el módulo KMP resulte más costoso de mantener que la duplicación.
 
-`canAuthenticate` es verdadero solo si el estado es `available` y el tipo no es `none`. `isEnrolled` e `isLockedOut` se mantienen por compatibilidad y se derivan del estado.
+### Confirmación
 
-En Android el tipo se deduce por features del sistema y se prefiere huella sobre rostro: en muchos equipos el rostro es Clase 2 (débil) y nosotros pedimos `BIOMETRIC_STRONG`, así que con ambos sensores el prompt casi siempre termina usando la huella.
+- **iOS:** `LocalAuthenticationAuthenticatorTests` cubre cada fila de las dos tablas de la especificación (por ejemplo `testCancelCodesMapToCancelled` y `testUnknownOrForeignErrorsAreNotAvailable`). `BiometricPolicyTests` cubre la política y el reinicio de la sesión (`testSessionAutoResetsAfterRequirePin`).
+- **Android:** `BiometricPromptAuthenticatorTest` cubre la tabla de resultados del prompt. `BiometricPolicyTest` cubre la política, la sesión y que los códigos de estado coinciden con iOS (`statusCodesMatchIos`). La tabla de disponibilidad (`BiometricManager`) todavía no tiene test unitario porque depende del SDK; pendiente extraer el mapeo a una función pura.
+- Los dos jobs de CI (`swift test` y `gradle :biometric-core:test`) corren en cada push y PR.
 
-## Alternativas consideradas
+## Pros y contras de las opciones
 
-| Opción | Pros | Contras | Por qué no |
-|---|---|---|---|
-| Cada app maneja errores nativos directamente | Cero abstracción, máximo control | Lógica duplicada y divergente; Flutter tendría que conocer ambos SDK | No escala a 3 consumidores |
-| Flutter como única implementación (todo vía plugin de terceros) | Un solo código | Dependencia externa en un flujo de seguridad; las apps nativas existentes no lo usarían | Riesgo en auditoría bancaria |
-| Flutter recibe solo `authenticate` y escribe su propia política | Plugin más simple | La política de reintentos y PIN se escribiría una tercera vez, en Dart | Rompe el objetivo de escribir la política una sola vez |
-| Contrato común + implementación nativa por plataforma, política expuesta a Flutter (elegida) | Lógica de negocio escrita una vez; auditable; nativo donde importa | Mantener 2 implementaciones del contrato | Costo aceptable: el contrato es pequeño |
+### Cada app maneja los errores nativos
 
-## Consecuencias
+- Bien, porque no hay abstracción y el control es máximo.
+- Mal, porque la lógica se duplica y diverge, y Flutter tendría que conocer ambos SDK. No escala a tres consumidores.
 
-- **Positivas:** la política de reintentos y fallback se escribe y testea una vez por plataforma nativa, y Flutter la consume vía `runSession` sin duplicarla; los consumidores (SwiftUI, Compose, Flutter) no conocen `LAError` ni códigos de `BiometricPrompt`; el mapeo de errores queda documentado y versionado aquí, y cada fila de las tablas tiene un test (`LocalAuthenticationAuthenticatorTests`, `BiometricPromptAuthenticatorTest`).
-- **Cómo se cuentan los intentos:** `maxAttempts` cuenta **prompts**, no lecturas del sensor. Cada prompt del sistema ya permite varios intentos internos (Face ID, Touch ID y `BiometricPrompt` reintentan solos antes de devolver un error), así que `maxAttempts = 3` significa hasta 3 prompts, cada uno con sus propios intentos del sistema. `BiometricSession` reinicia el contador sola después de una decisión terminal (`grantAccess` o `requirePin`); `reset()` queda para casos explícitos como cerrar sesión.
-- **Negativas / deuda que aceptamos:** `BiometricPolicy` existe hoy en Swift y en Kotlin por separado (duplicación controlada). Plan: moverla a Kotlin Multiplatform en la semana 7 (ADR futuro). La biometría sigue siendo un evento (booleano), no un secreto criptográfico: se aborda en ADR-0002.
-- **Qué nos haría revisar esta decisión:** que Apple o Google expongan un nuevo estado que no mapee limpiamente, o que el módulo KMP resulte más costoso de mantener que la duplicación.
+### Flutter como única implementación (plugin de terceros)
 
-## Referencias
+- Bien, porque hay un solo código.
+- Mal, porque mete una dependencia externa en un flujo de seguridad y las apps nativas existentes no lo usarían.
 
-- Apple, LocalAuthentication: `LAError`, `LAContext.canEvaluatePolicy(_:error:)`
-- AndroidX Biometric: códigos de error de `BiometricPrompt` y estados de `BiometricManager`
-- OWASP MASVS v2, MASVS-AUTH-2 (autenticación local)
-- ADR-0002: biometría ligada a criptografía
+### Flutter solo recibe `authenticate`
+
+- Bien, porque el plugin es más simple.
+- Mal, porque la política se escribiría una tercera vez, en Dart.
+
+### Contrato común con la política expuesta a Flutter (elegida)
+
+- Bien, porque la lógica de negocio se escribe una vez, es auditable y es nativa donde importa.
+- Mal, porque hay que mantener dos implementaciones del contrato (costo aceptable: el contrato es pequeño).
+
+## Más información
+
+- Especificación del mapeo: [`docs/spec/error-mapping.md`](../spec/error-mapping.md)
+- OWASP MASVS v2, [MASVS-AUTH-2](https://mas.owasp.org/MASVS/controls/MASVS-AUTH-2/) (autenticación local) y [MASWE-0021](https://mas.owasp.org/MASWE/MASVS-AUTH/MASWE-0021/) (fallback a credencial no biométrica)
+- Apple: [`LAError`](https://developer.apple.com/documentation/localauthentication/laerror-swift.struct), `LAContext.canEvaluatePolicy(_:error:)`
+- AndroidX: [`BiometricPrompt`](https://developer.android.com/reference/androidx/biometric/BiometricPrompt), [`BiometricManager`](https://developer.android.com/reference/androidx/biometric/BiometricManager)
+- Siguiente: [ADR-0002](0002-crypto-bound-biometrics.md), biometría ligada a criptografía
