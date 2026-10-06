@@ -37,7 +37,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
       # El repo no trae Gradle wrapper: usamos una versión fija compatible con AGP 8.5.
       - uses: gradle/actions/setup-gradle@v4
         with:
