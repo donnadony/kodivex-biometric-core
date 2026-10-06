@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Una prueba por fila de la tabla de ADR-0001 (columna Android).
+ * Una prueba por fila de la tabla "Resultado del prompt" de docs/spec/error-mapping.md (columna Android).
  * Las constantes ERROR_* son `static final int`, Kotlin las inlinea y no hace
  * falta Robolectric para probar el mapeo.
  */

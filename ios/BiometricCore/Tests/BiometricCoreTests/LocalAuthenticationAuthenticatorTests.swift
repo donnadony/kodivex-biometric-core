@@ -3,7 +3,7 @@ import XCTest
 import LocalAuthentication
 @testable import BiometricCore
 
-/// Una prueba por fila de la tabla de ADR-0001 (columna iOS).
+/// Una prueba por fila de la tabla "Resultado del prompt" de docs/spec/error-mapping.md (columna iOS).
 final class LocalAuthenticationAuthenticatorMapTests: XCTestCase {
     private func map(_ code: LAError.Code) -> BiometricResult {
         LocalAuthenticationAuthenticator.map(LAError(code))
@@ -39,7 +39,7 @@ final class LocalAuthenticationAuthenticatorMapTests: XCTestCase {
     }
 }
 
-/// Segunda tabla de ADR-0001: canEvaluatePolicy hacia BiometricAvailabilityStatus.
+/// Tabla "Disponibilidad antes del prompt" de docs/spec/error-mapping.md: canEvaluatePolicy hacia BiometricAvailabilityStatus.
 final class LocalAuthenticationAuthenticatorStatusTests: XCTestCase {
     private func status(_ code: LAError.Code) -> BiometricAvailabilityStatus {
         LocalAuthenticationAuthenticator.status(

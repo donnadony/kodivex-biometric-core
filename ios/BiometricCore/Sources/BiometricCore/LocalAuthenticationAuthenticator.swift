@@ -3,7 +3,7 @@ import Foundation
 import LocalAuthentication
 
 /// Implementación iOS/macOS del contrato usando LocalAuthentication.
-/// Traduce LAError al BiometricResult común (tabla en ADR-0001).
+/// Traduce LAError al BiometricResult común (tabla "Resultado del prompt" en docs/spec/error-mapping.md).
 ///
 /// La app que lo use necesita `NSFaceIDUsageDescription` en su Info.plist;
 /// sin esa clave iOS no muestra Face ID.
@@ -47,7 +47,7 @@ public final class LocalAuthenticationAuthenticator: BiometricAuthenticator, @un
         }
     }
 
-    /// Traduce el resultado de canEvaluatePolicy al estado común (segunda tabla del ADR-0001).
+    /// Traduce el resultado de canEvaluatePolicy al estado común (tabla "Disponibilidad antes del prompt" en docs/spec/error-mapping.md).
     static func status(canEvaluate: Bool, error: NSError?) -> BiometricAvailabilityStatus {
         if canEvaluate { return .available }
         guard let error, error.domain == LAErrorDomain,

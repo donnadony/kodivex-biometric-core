@@ -41,7 +41,7 @@ En concreto:
 
 - **iOS:** ítem de Keychain con `.biometryCurrentSet` y accesibilidad `WhenPasscodeSetThisDeviceOnly`; un `LAContext` nuevo en cada lectura.
 - **Android:** clave AES en Keystore que exige `BIOMETRIC_STRONG` en cada uso e invalida con nuevo enrolamiento; se usa vía `BiometricPrompt.CryptoObject`.
-- **Contrato:** pieza nueva `BiometricSecretStore` (`store`, `unlock`, `invalidate`) y un resultado nuevo `keyInvalidated`, que la política trata como `requirePin` más reactivar biometría.
+- **Contrato:** pieza nueva `BiometricSecretStore` (`store`, `unlock`, `invalidate`) con su propio tipo de error cerrado, `BiometricSecretError`: `authentication(BiometricResult)` envuelve los resultados del prompt sin cambiarlos, y suma `keyInvalidated` (el enrolamiento cambió) y `passcodeNotSet` (no hay código del dispositivo, así que no se puede guardar). `BiometricResult` del ADR-0001 no cambia, así que los `switch` y `when` exhaustivos de los consumidores actuales siguen compilando. La política trata `keyInvalidated` como `requirePin` más reactivar biometría, y `passcodeNotSet` como biometría no disponible.
 - **Flutter:** el secreto no cruza a Dart; el plugin expone operaciones de alto nivel.
 
 El detalle de APIs, errores por plataforma y casos borde está en la nota de diseño [`docs/design/crypto-bound-biometrics.md`](../design/crypto-bound-biometrics.md).
@@ -51,7 +51,7 @@ El detalle de APIs, errores por plataforma y casos borde está en la nota de dis
 - **Buenas:** enganchar `evaluatePolicy` u `onAuthenticationSucceeded` ya no basta, porque sin biometría real el sistema no entrega el secreto; cambiar las huellas o rostros invalida la clave, lo que protege contra alguien que conoce el código del dispositivo y enrola su propia biometría; queda alineado con MASTG-BEST-0036 y 0037.
 - **Malas / deuda que aceptamos:**
   - **Sube la barrera, no da inmunidad:** tras un unlock legítimo el secreto está en memoria de la app, y en un equipo comprometido se puede leer o se puede enganchar la lógica posterior. Mitigación parcial: mantener el secreto en nativo el menor tiempo posible.
-  - El contrato crece (`BiometricSecretStore`, `keyInvalidated`) y hay que actualizar la especificación de errores, el DTO de Pigeon y el plugin.
+  - El contrato crece con un tipo nuevo (`BiometricSecretStore` y `BiometricSecretError`) en lugar de ampliar `BiometricResult`: es un cambio compatible para los consumidores actuales, pero hay que mantener un tipo más en Swift, Kotlin y Pigeon, y agregar a la especificación de errores una tabla para el almacén de secretos.
   - Usuarios actuales necesitan migración: primer login con PIN y luego activar la biometría.
   - Keychain y Keystore no se prueban en `swift test` ni en tests de JVM: hacen falta pruebas instrumentadas y en equipos reales.
   - Algunos equipos Android tienen Keystore poco confiable: hay que monitorear errores en producción.
